@@ -5,10 +5,11 @@ import pytorch_lightning as pl
 
 
 class UNet(nn.Module):
-    def __init__(self, in_channels=3, out_channels=3, base_ch=16, use_dropout=False):
+    def __init__(self, in_channels=3, out_channels=3, base_ch=16, use_dropout=False, latent_dim=128):
         super().__init__()
         self.use_dropout = use_dropout
         C = base_ch
+        self.latent_dim = latent_dim
 
         # Encoder
         self.encoder1 = self._conv_block(in_channels, C)             # H x W
@@ -26,6 +27,11 @@ class UNet(nn.Module):
         self.decoder1 = self._upconv_block(C*2, C)                   # H x W
 
         self.final_conv = nn.Conv2d(C, out_channels, kernel_size=1)
+
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        self.fc_latent = nn.Linear(C*16, latent_dim)
+        self.fc_expand = nn.Linear(latent_dim, C*16)
+
 
     def _conv_block(self, in_channels, out_channels, pool=False):
         layers = []
@@ -55,14 +61,21 @@ class UNet(nn.Module):
         e2 = self.encoder2(e1)
         e3 = self.encoder3(e2)
         e4 = self.encoder4(e3)
+        b = self.bottleneck(e4)                     # [B, C*16, H/16, W/16]
 
-        b = self.bottleneck(e4)
+        # ---- GLOBAL LATENT ----
+        z = self.gap(b).flatten(1)                  # [B, C*16]
+        z = self.fc_latent(z)                       # [B, LATENT_DIM]
 
-        # Skip connections
-        d4 = self.decoder4(b) + e4
-        d3 = self.decoder3(d4) + e3
-        d2 = self.decoder2(d3) + e2
-        d1 = self.decoder1(d2) + e1
+        # ---- BACK TO FEATURE MAP ----
+        b_rec = self.fc_expand(z).unsqueeze(-1).unsqueeze(-1)
+        b_rec = b_rec.expand_as(b)                  # [B, C*16, H/16, W/16]
+
+        # Decoder (uses latent!)
+        d4 = self.decoder4(b_rec) + 0.5 * e4
+        d3 = self.decoder3(d4)   + 0.5 * e3
+        d2 = self.decoder2(d3)   + 0.5 * e2
+        d1 = self.decoder1(d2)   + 0.5 * e1
 
         out = self.final_conv(d1)
         return out
@@ -75,6 +88,16 @@ class UNet(nn.Module):
         e4 = self.encoder4(e3)
         b = self.bottleneck(e4)
         return b
+    
+    def encode(self, x):
+        e1 = self.encoder1(x)
+        e2 = self.encoder2(e1)
+        e3 = self.encoder3(e2)
+        e4 = self.encoder4(e3)
+        b = self.bottleneck(e4)
+        z = self.fc_latent(self.gap(b).flatten(1))
+        return z
+
 
 
 class UNetLightning(pl.LightningModule):
@@ -90,7 +113,9 @@ class UNetLightning(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         imgs, _, _ = batch
         recon = self(imgs)
-        loss = self.mse(recon, imgs)
+        z = self.model.encode(imgs)
+        loss_latent = 1e-4 * z.pow(2).mean()
+        loss = self.mse(recon, imgs) + loss_latent
         self.log('train_loss', loss, prog_bar=True, on_step=True, on_epoch=True)
         return loss
 
