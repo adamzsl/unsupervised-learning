@@ -22,7 +22,11 @@ UN/
 │   └── splits/                # Podział train/val/test
 ├── src/                       # Kod źródłowy
 │   ├── encoder/               # Implementacja autoenkodera
-│   └── damage_generator/      # Generator uszkodzeń
+│   ├── clustering/            # Klasteryzacja reprezentacji
+│   ├── damage_generator/      # Generator uszkodzeń
+│   ├── inpainting/            # Modele inpaintingu
+│   ├── superres/              # Modele super-resolution
+│   └── gui/                   # Proste GUI demo
 ├── notebooks/                 # Jupyter notebooks
 ├── models/                    # Zapisane modele (gitignored)
 ├── configs/                   # Pliki konfiguracyjne
@@ -70,22 +74,30 @@ Projekt wykorzystuje zbiór WikiArt dostępny na Hugging Face:
 ### Etap 1 (obecny)
 
 - [x] Struktura projektu
-- [ ] Generator prostych uszkodzeń (kwadratowe maski)
-- [ ] Autoenkoder podstawowy
+- [x] Generator prostych uszkodzeń (kwadratowe maski)
+- [x] Autoenkoder podstawowy
 
 ### Etap 2
 
-- [ ] Klasteryzacja reprezentacji
-- [ ] Model inpainting dla prostych uszkodzeń
+- [x] Klasteryzacja reprezentacji
+- [x] Model inpainting dla prostych uszkodzeń
 - [ ] Ocena: 3.0
 
 ### Etap 3
 
-- [ ] Super-resolution
+- [x] Super-resolution
 - [ ] Ocena: 4.0
 
 ### Etap 4
 
-- [ ] Generator nieregularnych uszkodzeń
-- [ ] Inpainting dla nieregularnych masek
+- [x] Generator nieregularnych uszkodzeń
+- [x] Inpainting dla nieregularnych masek
 - [ ] Ocena: 5.0
+
+## ▶️ Szybkie demo
+
+```bash
+streamlit run src/gui/app.py
+```
+
+Notebook end-to-end: `notebooks/end_to_end_demo.ipynb`.
