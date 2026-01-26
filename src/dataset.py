@@ -73,7 +73,6 @@ class WikiArtMaskedDataset(Dataset):
         image = self.transform(item["image"]).float()
         mask = self._make_mask()
         mask_tensor = torch.from_numpy(mask).unsqueeze(0)
-        mask_tensor = torch.from_numpy(mask).unsqueeze(0)
         mask_tensor = mask_tensor.float()
         masked = image * (1.0 - mask_tensor) + mask_tensor
         metadata = {
