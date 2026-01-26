@@ -11,7 +11,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
-from .damage_generator.masks import apply_mask, generate_irregular_mask, generate_square_mask
+from .damage_generator.masks import generate_irregular_mask, generate_square_mask
 
 
 @dataclass
@@ -73,7 +73,9 @@ class WikiArtMaskedDataset(Dataset):
         image = self.transform(item["image"]).float()
         mask = self._make_mask()
         mask_tensor = torch.from_numpy(mask).unsqueeze(0)
-        masked = torch.from_numpy(apply_mask(image.numpy(), mask)).float()
+        mask_tensor = torch.from_numpy(mask).unsqueeze(0)
+        mask_tensor = mask_tensor.float()
+        masked = image * (1.0 - mask_tensor) + mask_tensor
         metadata = {
             "style": item.get("style", None),
             "artist": item.get("artist", None),

@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Dict
 
 import torch
+from torch import nn
 
 from .model import SimpleSRCNN
 
