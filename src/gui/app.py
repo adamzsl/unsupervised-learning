@@ -6,14 +6,17 @@ from pathlib import Path
 
 import numpy as np
 import streamlit as st
-import torch
 from PIL import Image
 
 from src.damage_generator.masks import apply_mask, generate_irregular_mask, generate_square_mask
-from src.inpainting.inference import inpaint_image
-from src.inpainting.model import InpaintConfig, SimpleUNet
-from src.superres.inference import super_resolve
-from src.superres.model import SimpleSRCNN, SuperResConfig
+
+try:  # torch jest opcjonalny dla demo
+    import torch
+
+    TORCH_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    torch = None
+    TORCH_AVAILABLE = False
 
 
 st.set_page_config(page_title="WikiArt Inpainting Demo", layout="wide")
@@ -50,7 +53,10 @@ if selected:
 
     inpainted = None
     super_res = None
-    if run_inpaint:
+    if run_inpaint and TORCH_AVAILABLE:
+        from src.inpainting.inference import inpaint_image
+        from src.inpainting.model import InpaintConfig, SimpleUNet
+
         model = SimpleUNet(InpaintConfig())
         masked_tensor = torch.from_numpy(masked).permute(2, 0, 1).unsqueeze(0).float()
         mask_tensor = torch.from_numpy(mask).unsqueeze(0).unsqueeze(0).float()
@@ -60,7 +66,10 @@ if selected:
             .permute(1, 2, 0)
             .numpy()
         )
-    if run_superres and inpainted is not None:
+    if run_superres and inpainted is not None and TORCH_AVAILABLE:
+        from src.superres.inference import super_resolve
+        from src.superres.model import SimpleSRCNN, SuperResConfig
+
         sr_model = SimpleSRCNN(SuperResConfig())
         input_tensor = torch.from_numpy(inpainted).permute(2, 0, 1).unsqueeze(0).float()
         super_res = (
@@ -69,6 +78,8 @@ if selected:
             .permute(1, 2, 0)
             .numpy()
         )
+    if not TORCH_AVAILABLE:
+        st.warning("Torch nie jest dostępny - pomijam inpainting i super-resolution.")
 
     columns = 3 + int(inpainted is not None) + int(super_res is not None)
     col_list = st.columns(columns)
@@ -91,3 +102,12 @@ if selected:
         col_list[col_idx].image(super_res, clamp=True)
 else:
     st.info("Wybierz folder z obrazami testowymi i wylosuj obraz.")
+
+st.sidebar.markdown("---")
+if st.sidebar.button("Wgraj przykładowe obrazy demo"):
+    demo_dir = Path(image_dir)
+    demo_dir.mkdir(parents=True, exist_ok=True)
+    for idx, color in enumerate([(220, 90, 90), (90, 220, 140), (90, 140, 220)]):
+        img = Image.new("RGB", (image_size, image_size), color)
+        img.save(demo_dir / f"demo_{idx}.png")
+    st.sidebar.success(f"Zapisano przykładowe obrazy w {demo_dir}")
