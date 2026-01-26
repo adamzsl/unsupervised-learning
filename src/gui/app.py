@@ -2,11 +2,16 @@
 from __future__ import annotations
 
 import random
+import sys
 from pathlib import Path
 
 import numpy as np
 import streamlit as st
 from PIL import Image
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.append(str(ROOT_DIR))
 
 from src.damage_generator.masks import apply_mask, generate_irregular_mask, generate_square_mask
 
