@@ -48,6 +48,6 @@ training:
 
 # Experiment tracking
 experiment:
-  use_comet: false
-  project_name: "wikiart-inpainting"
-  workspace: ""
+  use_comet: true # commet logging
+  project_name: "wikiart-inpainting" # commet project name
+  workspace: "adam-8876" # commet workspace name
