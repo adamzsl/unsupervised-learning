@@ -101,3 +101,17 @@ streamlit run src/gui/app.py
 ```
 
 Notebook end-to-end: `notebooks/end_to_end_demo.ipynb`.
+
+## 🧪 Trening krok po kroku (Colab, pipeline jak w WikiArt_Inpainting)
+
+Najprościej uruchomić pełny pipeline w Colabie przez notebook `notebooks/colab_training.ipynb`.
+
+1. Otwórz notebook w Colabie i uruchom komórkę **Setup**, aby sklonować repo i zainstalować zależności.
+2. Wczytaj dane WikiArt w sekcji **1. Wczytanie danych** (domyślnie `Artificio/WikiArt_Full`).
+3. Wytrenuj autoenkoder w sekcji **2. Trening autoenkodera** – to buduje embeddingi.
+4. Uruchom **3. Ekstrakcja embeddingów i klasteryzacja** – powstaną etykiety klastrów.
+5. Wytrenuj **bazowy model inpainting** w sekcji **4. Trening bazowego modelu inpainting**.
+6. (Opcjonalnie) W sekcji **5. Fine-tuning per klaster** ucz osobne impaintery na danych z klastrów.
+7. Sprawdź wynik w sekcji **6. Szybki test impaintera**.
+
+Klasteryzacja jest kluczowa – etykiety klastrów służą do przygotowania podzbiorów, na których dopracowujesz modele inpaintingu (tak jak w repozytorium WikiArt_Inpainting).
