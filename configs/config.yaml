@@ -15,6 +15,9 @@ damage:
   max_damage_ratio: 0.0625 # 1/16 of image
   min_mask_size: 16
   max_mask_size: 64
+  mask_type: "square"
+  brush_width: 12
+  num_strokes: 3
 
 # Encoder settings
 encoder:
@@ -22,6 +25,19 @@ encoder:
   latent_dim: 256
   learning_rate: 0.001
   epochs: 100
+
+# Clustering settings
+clustering:
+  method: "kmeans"
+  n_clusters: 8
+
+# Inpainting settings
+inpainting:
+  base_channels: 32
+
+# Super-resolution settings
+superres:
+  base_channels: 32
 
 # Training settings
 training:
