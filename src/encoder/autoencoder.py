@@ -11,7 +11,7 @@ from torch import nn
 @dataclass
 class AutoencoderConfig:
     input_channels: int = 3
-    latent_dim: int = 256
+    latent_dim: int = 128
     image_size: int = 256
 
 
