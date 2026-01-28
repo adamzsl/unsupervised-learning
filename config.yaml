@@ -14,7 +14,7 @@ data:
 damage:
   max_damage_ratio: 0.0625 # 1/16 of image
   min_mask_size: 16
-  max_mask_size: 64
+  max_mask_size: 48
   mask_type: "square"
   brush_width: 12
   num_strokes: 3
