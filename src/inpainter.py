@@ -6,6 +6,11 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 
+def inpaint_image(model: SimpleUNet, image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    model.eval()
+    with torch.no_grad():
+        output = model(image, mask)
+    return output
 
 @dataclass
 class InpaintConfig:
@@ -49,3 +54,13 @@ class SimpleUNet(nn.Module):
         d2 = self.dec2(e3)
         d1 = self.dec1(d2)
         return self.out(d1)
+    
+def inpaint_step(model: SimpleUNet, batch, device: torch.device) -> Dict[str, float]:
+    images, masks, masked, _ = batch
+    images = images.to(device)
+    masks = masks.to(device)
+    masked = masked.to(device)
+    output = model(masked, masks)
+    loss = nn.functional.l1_loss(output * masks, images * masks)
+    return {"loss": loss}
+

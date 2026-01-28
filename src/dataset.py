@@ -11,7 +11,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
-from .damage_generator.masks import generate_irregular_mask, generate_square_mask
+from .masks import generate_irregular_mask, generate_square_mask
 
 
 @dataclass
