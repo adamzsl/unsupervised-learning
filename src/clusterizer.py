@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Tuple
 
+
 import numpy as np
 from sklearn.cluster import DBSCAN, KMeans, SpectralClustering
 from sklearn.decomposition import PCA
@@ -15,6 +16,25 @@ try:
     import umap  # type: ignore
 except ImportError:  # pragma: no cover - optional dependency
     umap = None
+
+
+def predict_clusters(embeddings: np.ndarray, artifacts: ClusteringArtifacts,) -> np.ndarray:
+    scaled = artifacts.scaler.transform(embeddings)
+    reduced = artifacts.pca.transform(scaled)
+
+    model = artifacts.model
+    if hasattr(model, "predict"):
+        return model.predict(reduced)
+
+    raise ValueError(
+        f"{type(model)} nie wspiera predykcji nowych punktów"
+    )
+
+
+def predict_single_cluster(embedding: np.ndarray, artifacts: ClusteringArtifacts,) -> int:
+    labels = predict_clusters(embedding[None, :], artifacts)
+    return int(labels[0])
+
 
 
 @dataclass

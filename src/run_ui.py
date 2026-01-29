@@ -1,4 +1,5 @@
 import io
+import pickle
 import random
 from pathlib import Path
 import tkinter as tk
@@ -11,8 +12,16 @@ import torch
 
 from autoencoder import ConvAutoencoder, AutoencoderConfig
 from inpainter import InpaintConfig, SimpleUNet, inpaint_image
-
 from utils import load_config
+
+import sys
+import clusterizer
+
+sys.modules["src.clusterization.clusterizer"] = clusterizer
+sys.modules["src.clusterization"] = clusterizer
+
+from clusterizer import predict_single_cluster, ClusteringArtifacts
+
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 config = load_config(BASE_DIR / "config.yaml")
@@ -21,6 +30,7 @@ data_cfg = config['data']
 DATASET_DIR = BASE_DIR / "dataset1" / "data"
 AUTOENCODER_PATH = BASE_DIR / "models" / "autoencoder.pth"
 INPAINTER_PATH = BASE_DIR / "models" / "inpaint_base.pth"
+INPAINTER_CLUSTER_PATH = BASE_DIR / "models" / "inpaint_cluster_"
 
 
 MIN_HOLE = 10
@@ -107,6 +117,8 @@ class InpainterUI(tk.Tk):
         self.autoencoder = None
         self.ae_image = None
         self.inpainter_model = None
+        self.cluster_artifacts = None
+
 
         self.bind("<Configure>", self._on_resize)
 
@@ -132,6 +144,49 @@ class InpainterUI(tk.Tk):
             ],
             foreground=[("disabled", "#888888")],
         )
+    
+    def get_image_cluster_id(self):
+        try:
+            if self.autoencoder is None:
+                img_size = data_cfg['image_size']
+                auto_cfg = AutoencoderConfig(
+                    input_channels=3,
+                    latent_dim=config['encoder']['latent_dim'],
+                    image_size=img_size,
+                )
+                self.autoencoder = ConvAutoencoder(auto_cfg).to("cpu")
+                self.autoencoder.load_state_dict(
+                    torch.load(AUTOENCODER_PATH, map_location="cpu")
+                )
+                self.autoencoder.eval()
+
+            if self.cluster_artifacts is None:
+                path = BASE_DIR / "models" / "cluster_artifacts.pkl"
+                print("Looking for:", path)
+                print("Exists:", path.exists())
+                with open(BASE_DIR / "models" / "cluster_artifacts.pkl", "rb") as f:
+                    self.cluster_artifacts = pickle.load(f)
+
+            img = self.original_image.resize(
+                (data_cfg['image_size'], data_cfg['image_size']),
+                Image.BILINEAR,
+            )
+            img = np.array(img).astype(np.float32) / 255.0
+            tensor = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(0)
+
+            with torch.no_grad():
+                _, z = self.autoencoder(tensor)
+
+            embedding = z.flatten(1).cpu().numpy()[0]
+
+            cluster_id = predict_single_cluster(embedding, self.cluster_artifacts)
+            print("Cluster ID:", cluster_id)
+            return int(cluster_id)
+
+        except Exception as e:
+            print(e)
+            return None
+
 
     def _build_ui(self):
         top = tk.Frame(self, bg=BG_COLOR)
@@ -352,19 +407,33 @@ class InpainterUI(tk.Tk):
     def run_inpainter_inference(self):
         if self.inpainter_model is None:
             print("Loading inpainter model")
+
+            model_path = INPAINTER_PATH  
+
+            cluster_id = self.get_image_cluster_id()
+            if cluster_id is not None:
+                candidate = INPAINTER_CLUSTER_PATH.with_name(
+                    f"inpaint_cluster_{cluster_id}.pth"
+                )
+                if candidate.exists():
+                    print(f"[Cluster] Using cluster model {cluster_id}")
+                    model_path = candidate
+                else:
+                    print(f"[Cluster] Model for cluster {cluster_id} not found, fallback")
+
             try:
-                inpainter_cfg = InpaintConfig(input_channels=4, base_channels=config['inpainting']['base_channels'])
+                inpainter_cfg = InpaintConfig(
+                    input_channels=4,
+                    base_channels=config['inpainting']['base_channels'],
+                )
                 self.inpainter_model = SimpleUNet(inpainter_cfg).to("cpu")
                 self.inpainter_model.load_state_dict(
-                    torch.load(INPAINTER_PATH, map_location="cpu")
+                    torch.load(model_path, map_location="cpu")
                 )
                 self.inpainter_model.eval()
-            except FileNotFoundError:
-                print(f"Inpainter model not found at {INPAINTER_PATH}. Please train it first.")
-                self.inpainter_model = None
-                return
+
             except Exception as e:
-                print(f"Error loading inpainter model: {e}")
+                print(f"Inpainter load failed, fallback to base: {e}")
                 self.inpainter_model = None
                 return
 
