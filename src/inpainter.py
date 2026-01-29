@@ -52,9 +52,13 @@ class VGGPerceptualLoss(nn.Module):
         )
 
     def forward(self, output: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        output_norm = (output - self.mean) / self.std
-        target_norm = (target - self.mean) / self.std
-        return nn.functional.l1_loss(self.vgg(output_norm), self.vgg(target_norm))
+        self.vgg.eval()
+        output_norm = (output.clamp(0.0, 1.0) - self.mean) / self.std
+        target_norm = (target.clamp(0.0, 1.0) - self.mean) / self.std
+        with torch.no_grad():
+            target_features = self.vgg(target_norm)
+        output_features = self.vgg(output_norm)
+        return nn.functional.l1_loss(output_features, target_features)
 
 
 _PERCEPTUAL_LOSS: VGGPerceptualLoss | None = None
@@ -64,7 +68,7 @@ def _get_perceptual_loss(device: torch.device) -> VGGPerceptualLoss:
     global _PERCEPTUAL_LOSS
     if _PERCEPTUAL_LOSS is None:
         _PERCEPTUAL_LOSS = VGGPerceptualLoss()
-    if next(_PERCEPTUAL_LOSS.parameters()).device != device:
+    if _PERCEPTUAL_LOSS.mean.device != device:
         _PERCEPTUAL_LOSS = _PERCEPTUAL_LOSS.to(device)
     return _PERCEPTUAL_LOSS
 
@@ -95,7 +99,7 @@ class SimpleUNet(nn.Module):
             nn.Sigmoid(),
         )
 
-    def forward(self, image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    def forward(self, image: torch.Tensor, mask: torch.Tensor, blend: bool = True) -> torch.Tensor:
         masked = image * (1.0 - mask)
         x = torch.cat([masked, mask], dim=1)
         e1 = self.enc1(x)
@@ -107,8 +111,10 @@ class SimpleUNet(nn.Module):
         d1 = self.up1(d2)
         d1 = self.dec1(torch.cat([d1, e1], dim=1))
         output = self.out(d1)
-        return output * mask + masked
-    
+        if blend:
+            return output * mask + masked
+        return output
+
 def inpaint_step(
     model: SimpleUNet,
     batch,
@@ -117,17 +123,17 @@ def inpaint_step(
     background_weight: float = 0.1,
     perceptual_weight: float = 0.1,
 ) -> Dict[str, float]:
-    images, masks, masked, _ = batch
+    images, masks, masked_images, _ = batch
     images = images.to(device)
     masks = masks.to(device)
-    masked = masked.to(device)
-    output = model(masked, masks)
+    masked_images = masked_images.to(device)
+    output = model(masked_images, masks, blend=False)
     loss_mask = nn.functional.l1_loss(output * masks, images * masks)
     inv_masks = 1.0 - masks
     loss_bg = nn.functional.l1_loss(output * inv_masks, images * inv_masks)
     if perceptual_weight > 0.0:
         perceptual = _get_perceptual_loss(device)
-        loss_perceptual = perceptual(output, images)
+        loss_perceptual = perceptual(output * masks, images * masks)
     else:
         loss_perceptual = torch.tensor(0.0, device=device)
     loss = mask_weight * loss_mask + background_weight * loss_bg + perceptual_weight * loss_perceptual
