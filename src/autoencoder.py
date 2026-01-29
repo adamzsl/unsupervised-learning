@@ -11,7 +11,7 @@ from torch import nn
 @dataclass
 class AutoencoderConfig:
     input_channels: int = 3
-    latent_dim: int = 128
+    latent_dim: int = 256
     image_size: int = 256
 
 
@@ -19,34 +19,38 @@ class ConvAutoencoder(nn.Module):
     def __init__(self, config: AutoencoderConfig) -> None:
         super().__init__()
         self.encoder_conv = nn.Sequential(
-            nn.Conv2d(config.input_channels, 32, kernel_size=4, stride=2, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=1),
+            nn.Conv2d(config.input_channels, 64, kernel_size=4, stride=2, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),
             nn.ReLU(inplace=True),
+            nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(inplace=True),
         )
-        self.flatten = nn.Flatten()
+        self.global_pool = nn.AdaptiveAvgPool2d(1)
         with torch.no_grad():
             dummy = torch.zeros(1, config.input_channels, config.image_size, config.image_size)
             conv_out = self.encoder_conv(dummy)
         self._conv_shape = conv_out.shape[1:]
         self._conv_flat_dim = int(conv_out.numel())
-        self.encoder_out = nn.Linear(self._conv_flat_dim, config.latent_dim)
+        self.encoder_out = nn.Linear(self._conv_shape[0], config.latent_dim)
         self.decoder_in = nn.Linear(config.latent_dim, self._conv_flat_dim)
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(self._conv_shape[0], 64, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(self._conv_shape[0], 256, kernel_size=4, stride=2, padding=1),
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(32, config.input_channels, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(64, config.input_channels, kernel_size=4, stride=2, padding=1),
             nn.Sigmoid(),
         )
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         features = self.encoder_conv(x)
-        flattened = self.flatten(features)
-        return self.encoder_out(flattened)
+        pooled = self.global_pool(features).flatten(1)
+        return self.encoder_out(pooled)
 
     def decode(self, z: torch.Tensor) -> torch.Tensor:
         decoded = self.decoder_in(z).view(-1, *self._conv_shape)

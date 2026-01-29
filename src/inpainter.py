@@ -6,6 +6,8 @@ from typing import Dict
 
 import torch
 from torch import nn
+from torchvision import models
+from torchvision.models import VGG16_Weights
 
 def inpaint_image(model: SimpleUNet, image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     model.eval()
@@ -31,6 +33,44 @@ class DoubleConv(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
+
+
+class VGGPerceptualLoss(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        vgg = models.vgg16(weights=VGG16_Weights.DEFAULT).features[:16].eval()
+        for param in vgg.parameters():
+            param.requires_grad = False
+        self.vgg = vgg
+        self.register_buffer(
+            "mean",
+            torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1),
+        )
+        self.register_buffer(
+            "std",
+            torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1),
+        )
+
+    def forward(self, output: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        self.vgg.eval()
+        output_norm = (output.clamp(0.0, 1.0) - self.mean) / self.std
+        target_norm = (target.clamp(0.0, 1.0) - self.mean) / self.std
+        with torch.no_grad():
+            target_features = self.vgg(target_norm)
+        output_features = self.vgg(output_norm)
+        return nn.functional.l1_loss(output_features, target_features)
+
+
+_PERCEPTUAL_LOSS: VGGPerceptualLoss | None = None
+
+
+def _get_perceptual_loss(device: torch.device) -> VGGPerceptualLoss:
+    global _PERCEPTUAL_LOSS
+    if _PERCEPTUAL_LOSS is None:
+        _PERCEPTUAL_LOSS = VGGPerceptualLoss()
+    if _PERCEPTUAL_LOSS.mean.device != device:
+        _PERCEPTUAL_LOSS = _PERCEPTUAL_LOSS.to(device)
+    return _PERCEPTUAL_LOSS
 
 
 class SimpleUNet(nn.Module):
@@ -59,8 +99,9 @@ class SimpleUNet(nn.Module):
             nn.Sigmoid(),
         )
 
-    def forward(self, image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        x = torch.cat([image, mask], dim=1)
+    def forward(self, image: torch.Tensor, mask: torch.Tensor, blend: bool = True) -> torch.Tensor:
+        masked = image * (1.0 - mask)
+        x = torch.cat([masked, mask], dim=1)
         e1 = self.enc1(x)
         e2 = self.enc2_conv(self.enc2(e1))
         e3 = self.enc3_conv(self.enc3(e2))
@@ -69,23 +110,36 @@ class SimpleUNet(nn.Module):
         d2 = self.dec2(torch.cat([d2, e2], dim=1))
         d1 = self.up1(d2)
         d1 = self.dec1(torch.cat([d1, e1], dim=1))
-        return self.out(d1)
-    
+        output = self.out(d1)
+        if blend:
+            return output * mask + masked
+        return output
+
 def inpaint_step(
     model: SimpleUNet,
     batch,
     device: torch.device,
     mask_weight: float = 1.0,
     background_weight: float = 0.1,
+    perceptual_weight: float = 0.1,
 ) -> Dict[str, float]:
-    images, masks, masked, _ = batch
+    images, masks, masked_images, _ = batch
     images = images.to(device)
     masks = masks.to(device)
-    masked = masked.to(device)
-    output = model(masked, masks)
+    masked_images = masked_images.to(device)
+    output = model(masked_images, masks, blend=False)
     loss_mask = nn.functional.l1_loss(output * masks, images * masks)
     inv_masks = 1.0 - masks
     loss_bg = nn.functional.l1_loss(output * inv_masks, images * inv_masks)
-    loss = mask_weight * loss_mask + background_weight * loss_bg
-    return {"loss": loss}
-
+    if perceptual_weight > 0.0:
+        perceptual = _get_perceptual_loss(device)
+        loss_perceptual = perceptual(output * masks, images * masks)
+    else:
+        loss_perceptual = torch.tensor(0.0, device=device)
+    loss = mask_weight * loss_mask + background_weight * loss_bg + perceptual_weight * loss_perceptual
+    return {
+        "loss": loss,
+        "loss_mask": float(loss_mask.detach().cpu()),
+        "loss_bg": float(loss_bg.detach().cpu()),
+        "loss_perceptual": float(loss_perceptual.detach().cpu()),
+    }
