@@ -25,6 +25,8 @@ class ClusteringArtifacts:
 
 
 def build_embeddings(embeddings: np.ndarray) -> Tuple[np.ndarray, StandardScaler, PCA]:
+    if embeddings.ndim > 2:
+        embeddings = embeddings.reshape(embeddings.shape[0], -1)
     scaler = StandardScaler()
     scaled = scaler.fit_transform(embeddings)
     pca = PCA(n_components=min(64, embeddings.shape[1]))
