@@ -20,14 +20,21 @@ except ImportError:  # pragma: no cover - optional dependency
 @dataclass
 class ClusteringArtifacts:
     scaler: StandardScaler
-    pca: PCA
+    pca: PCA | None
     model: object
 
 
-def build_embeddings(embeddings: np.ndarray) -> Tuple[np.ndarray, StandardScaler, PCA]:
+def build_embeddings(
+    embeddings: np.ndarray,
+    use_pca: bool = False,
+) -> Tuple[np.ndarray, StandardScaler, PCA | None]:
     scaler = StandardScaler()
     scaled = scaler.fit_transform(embeddings)
-    pca = PCA(n_components=min(64, embeddings.shape[1]))
+    if not use_pca:
+        return scaled, scaler, None
+    if embeddings.shape[1] <= 128:
+        return scaled, scaler, None
+    pca = PCA(n_components=min(128, embeddings.shape[1]))
     reduced = pca.fit_transform(scaled)
     return reduced, scaler, pca
 
@@ -44,8 +51,9 @@ def cluster_embeddings(
     embeddings: np.ndarray,
     method: str = "kmeans",
     n_clusters: int = 8,
+    use_pca: bool = False,
 ) -> Tuple[np.ndarray, ClusteringArtifacts]:
-    reduced, scaler, pca = build_embeddings(embeddings)
+    reduced, scaler, pca = build_embeddings(embeddings, use_pca=use_pca)
     if method == "gmm":
         model = GaussianMixture(n_components=n_clusters, random_state=42)
         labels = model.fit_predict(reduced)
