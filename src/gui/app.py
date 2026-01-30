@@ -63,10 +63,11 @@ if selected:
         from src.inpainting.model import InpaintConfig, SimpleUNet
 
         model = SimpleUNet(InpaintConfig())
-        masked_tensor = torch.from_numpy(masked).permute(2, 0, 1).unsqueeze(0).float()
+        # Pass original image, not masked - model applies mask internally
+        image_tensor = torch.from_numpy(image_np).permute(2, 0, 1).unsqueeze(0).float()
         mask_tensor = torch.from_numpy(mask).unsqueeze(0).unsqueeze(0).float()
         inpainted = (
-            inpaint_image(model, masked_tensor, mask_tensor)
+            inpaint_image(model, image_tensor, mask_tensor)
             .squeeze(0)
             .permute(1, 2, 0)
             .numpy()

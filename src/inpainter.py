@@ -257,11 +257,12 @@ def inpaint_step(
     perceptual_weight: float = 0.1,
     kld_weight: float = 1.0,
 ) -> Dict[str, float]:
-    images, masks, masked, _ = batch
+    images, masks, _, _ = batch
     images = images.to(device)
     masks = masks.to(device)
-    masked = masked.to(device)
-    outputs = model(masked, masks)
+    # Note: Pass original 'images' to model, not 'masked'.
+    # The model applies masking internally in forward().
+    outputs = model(images, masks)
     if isinstance(outputs, tuple):
         output, latent = outputs
         loss = vae_loss(
