@@ -1,0 +1,62 @@
+# Configuration file for WikiArt Inpainting Project
+
+# Data settings
+data:
+  dataset_name: "Artificio/WikiArt_Full"
+  image_size: 256
+  train_split: 0.7
+  val_split: 0.15
+  test_split: 0.15
+  batch_size: 32
+  num_workers: 4
+
+# Damage generator settings
+damage:
+  max_damage_ratio: 0.0625 # 1/16 of image
+  min_mask_size: 16
+  max_mask_size: 48
+  mask_type: "square"
+  brush_width: 12
+  num_strokes: 3
+
+# Encoder settings
+encoder:
+  architecture: "convolutional" # convolutional, resnet
+  latent_dim: 128
+  learning_rate: 0.001
+  epochs: 100
+
+# Clustering settings
+clustering:
+  method: "kmeans"
+  n_clusters: null
+  pca_components: null
+  pca_variance_threshold: 0.95
+  pca_max_components: 128
+  pca_min_components: 16
+  k_min: 2
+  k_max: 12
+
+# Inpainting settings
+inpainting:
+  base_channels: 32
+  model_type: "vae"
+  latent_dim: 128
+  output_scale: 1.0
+
+# Super-resolution settings
+superres:
+  base_channels: 32
+
+# Training settings
+training:
+  device: "cuda" # cuda, cpu
+  seed: 42
+  checkpoint_dir: "./models"
+  log_interval: 10
+
+# Experiment tracking
+experiment:
+  use_comet: true # commet logging
+  project_name: "wikiart-inpainting" # commet project name
+  workspace: "adam-8876" # commet workspace name

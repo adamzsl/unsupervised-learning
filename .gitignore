@@ -33,6 +33,7 @@ data/processed/
 data/splits/
 *.h5
 *.hdf5
+*artifacts
 
 # Models
 models/*.pth
@@ -71,3 +72,5 @@ Thumbs.db
 /dataset1/
 /dataset2/
 /dataset3/
+
+/skip
