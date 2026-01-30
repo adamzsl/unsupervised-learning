@@ -42,7 +42,7 @@ inpainting:
   base_channels: 32
   model_type: "vae"
   latent_dim: 128
-  output_scale: 255.0
+  output_scale: 1.0
 
 # Super-resolution settings
 superres:

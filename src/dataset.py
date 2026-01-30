@@ -44,6 +44,7 @@ class WikiArtMaskedDataset(Dataset):
         self.max_mask_size = max_mask_size
         self.brush_width = brush_width
         self.num_strokes = num_strokes
+        self.scale_images = scale_images
         resize = transforms.Resize((image_size, image_size))
         if scale_images:
             to_tensor = transforms.ToTensor()
@@ -99,7 +100,7 @@ def load_wikiart_splits(
     return DatasetSplits(train=train_val["train"], val=train_val["test"], test=splits["test"])
 
 
-    def create_dataloaders(
+def create_dataloaders(
     splits: DatasetSplits,
     image_size: int,
     mask_type: str,
@@ -110,8 +111,8 @@ def load_wikiart_splits(
     max_mask_size: int = 64,
     brush_width: int = 12,
     num_strokes: int = 3,
-        scale_images: bool = True,
-    ) -> Tuple[DataLoader, DataLoader, DataLoader]:
+    scale_images: bool = True,
+) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """Tworzy DataLoadery dla train/val/test."""
     train_ds = WikiArtMaskedDataset(
         splits.train,

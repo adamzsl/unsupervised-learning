@@ -55,12 +55,17 @@ def select_optimal_pca_components(
         features = features[indices]
 
     max_components = min(max_components, features.shape[1], features.shape[0])
+    max_components = max(max_components, 1)
     pca_full = PCA(n_components=max_components)
     pca_full.fit(features)
 
     cumulative_variance = np.cumsum(pca_full.explained_variance_ratio_)
-    optimal_n_components = int(np.argmax(cumulative_variance >= variance_threshold) + 1)
+    if np.any(cumulative_variance >= variance_threshold):
+        optimal_n_components = int(np.argmax(cumulative_variance >= variance_threshold) + 1)
+    else:
+        optimal_n_components = max_components
     optimal_n_components = max(min_components, optimal_n_components)
+    optimal_n_components = min(optimal_n_components, max_components)
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     ax1.bar(range(1, max_components + 1), pca_full.explained_variance_ratio_ * 100)
@@ -217,12 +222,16 @@ def summarize_labels(labels: np.ndarray, metadata: np.ndarray) -> Dict[int, Dict
 
 
 def _find_elbow(k_values: np.ndarray, inertias: np.ndarray) -> int:
-    diffs = np.diff(inertias)
-    second_diffs = np.diff(diffs)
-    if len(second_diffs) == 0:
+    if len(k_values) < 3:
         return int(k_values[0])
-    elbow_idx = int(np.argmax(second_diffs) + 2)
-    return int(k_values[min(elbow_idx, len(k_values) - 1)])
+    x1, y1 = k_values[0], inertias[0]
+    x2, y2 = k_values[-1], inertias[-1]
+    denom = np.sqrt((y2 - y1) ** 2 + (x2 - x1) ** 2)
+    if denom == 0:
+        return int(k_values[0])
+    distances = np.abs((y2 - y1) * k_values - (x2 - x1) * inertias + x2 * y1 - y2 * x1) / denom
+    elbow_idx = int(np.argmax(distances))
+    return int(k_values[elbow_idx])
 
 
 def select_optimal_clusters(
@@ -262,7 +271,9 @@ def select_optimal_clusters(
     votes = [k_elbow, k_silhouette, k_calinski]
     optimal_k = max(set(votes), key=votes.count)
     if votes.count(optimal_k) == 1:
-        optimal_k = k_silhouette
+        combined = 0.5 * silhouettes_np + 0.5 * (calinski_np / calinski_np.max())
+        optimal_k = int(k_values[int(np.argmax(combined))])
+        print("Brak zgodności metod - wybieram wynik z łączonego Silhouette/Calinski.")
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 4))
     axes[0].plot(k_values, inertias_np, marker="o")

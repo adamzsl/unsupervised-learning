@@ -126,20 +126,18 @@ class VAEInpaint(nn.Module):
         self.latent_dim = config.latent_dim
         self.output_scale = config.output_scale
 
-        self.enc1 = self._conv_block(config.input_channels, base)
+        self.enc1 = self._conv_block(config.input_channels, base, down=True)
         self.enc2 = self._conv_block(base, base * 2, down=True)
         self.enc3 = self._conv_block(base * 2, base * 4, down=True)
         self.enc4 = self._conv_block(base * 4, base * 8, down=True)
-        self.enc5 = self._conv_block(base * 8, base * 8, down=True)
 
         self.mu_conv = nn.Conv2d(base * 8, self.latent_dim, kernel_size=1)
         self.logvar_conv = nn.Conv2d(base * 8, self.latent_dim, kernel_size=1)
 
-        self.dec4 = self._upconv_block(self.latent_dim, base * 8)
-        self.dec3 = self._upconv_block(base * 8, base * 4)
-        self.dec2 = self._upconv_block(base * 4, base * 2)
-        self.dec1 = self._upconv_block(base * 2, base)
-        self.dec0 = self._upconv_block(base, base)
+        self.dec3 = self._upconv_block(self.latent_dim, base * 8)
+        self.dec2 = self._upconv_block(base * 8, base * 4)
+        self.dec1 = self._upconv_block(base * 4, base * 2)
+        self.dec0 = self._upconv_block(base * 2, base)
 
         self.out = nn.Sequential(
             nn.Conv2d(base, 3, kernel_size=1),
@@ -175,17 +173,17 @@ class VAEInpaint(nn.Module):
         x = self.enc2(x)
         x = self.enc3(x)
         x = self.enc4(x)
-        x = self.enc5(x)
         return self.mu_conv(x), self.logvar_conv(x)
 
     def reparameterize(self, mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
+        if not self.training:
+            return mu
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + eps * std
 
     def decode(self, z: torch.Tensor) -> torch.Tensor:
-        x = self.dec4(z)
-        x = self.dec3(x)
+        x = self.dec3(z)
         x = self.dec2(x)
         x = self.dec1(x)
         x = self.dec0(x)
