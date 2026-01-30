@@ -34,6 +34,7 @@ class WikiArtMaskedDataset(Dataset):
         max_mask_size: int = 64,
         brush_width: int = 12,
         num_strokes: int = 3,
+        scale_images: bool = True,
     ) -> None:
         self.dataset = dataset
         self.image_size = image_size
@@ -43,12 +44,13 @@ class WikiArtMaskedDataset(Dataset):
         self.max_mask_size = max_mask_size
         self.brush_width = brush_width
         self.num_strokes = num_strokes
-        self.transform = transforms.Compose(
-            [
-                transforms.Resize((image_size, image_size)),
-                transforms.ToTensor(),
-            ]
-        )
+        self.scale_images = scale_images
+        resize = transforms.Resize((image_size, image_size))
+        if scale_images:
+            to_tensor = transforms.ToTensor()
+        else:
+            to_tensor = transforms.PILToTensor()
+        self.transform = transforms.Compose([resize, to_tensor])
 
     def __len__(self) -> int:
         return len(self.dataset)
@@ -109,6 +111,7 @@ def create_dataloaders(
     max_mask_size: int = 64,
     brush_width: int = 12,
     num_strokes: int = 3,
+    scale_images: bool = True,
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """Tworzy DataLoadery dla train/val/test."""
     train_ds = WikiArtMaskedDataset(
@@ -120,6 +123,7 @@ def create_dataloaders(
         max_mask_size=max_mask_size,
         brush_width=brush_width,
         num_strokes=num_strokes,
+        scale_images=scale_images,
     )
     val_ds = WikiArtMaskedDataset(
         splits.val,
@@ -130,6 +134,7 @@ def create_dataloaders(
         max_mask_size=max_mask_size,
         brush_width=brush_width,
         num_strokes=num_strokes,
+        scale_images=scale_images,
     )
     test_ds = WikiArtMaskedDataset(
         splits.test,
@@ -140,6 +145,7 @@ def create_dataloaders(
         max_mask_size=max_mask_size,
         brush_width=brush_width,
         num_strokes=num_strokes,
+        scale_images=scale_images,
     )
     return (
         DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers),

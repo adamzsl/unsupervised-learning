@@ -29,11 +29,20 @@ encoder:
 # Clustering settings
 clustering:
   method: "kmeans"
-  n_clusters: 8
+  n_clusters: null
+  pca_components: null
+  pca_variance_threshold: 0.95
+  pca_max_components: 128
+  pca_min_components: 16
+  k_min: 2
+  k_max: 12
 
 # Inpainting settings
 inpainting:
   base_channels: 32
+  model_type: "vae"
+  latent_dim: 128
+  output_scale: 1.0
 
 # Super-resolution settings
 superres:
