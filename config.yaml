@@ -40,7 +40,7 @@ clustering:
 # Inpainting settings
 inpainting:
   base_channels: 32
-  model_type: "vae"
+  model_type: "unet"
   latent_dim: 128
   output_scale: 1.0
 
