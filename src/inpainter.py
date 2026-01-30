@@ -22,7 +22,7 @@ def inpaint_image(model: nn.Module, image: torch.Tensor, mask: torch.Tensor) -> 
 @dataclass
 class InpaintConfig:
     input_channels: int = 4  # obraz + maska
-    base_channels: int = 32
+    base_channels: int = 16
     latent_dim: int = 128
     output_scale: float = 1.0
     use_dropout: bool = False
@@ -40,7 +40,7 @@ class DoubleConv(nn.Module):
             nn.BatchNorm2d(out_channels),
         ]
         if use_dropout:
-            layers.append(nn.Dropout2d(0.5))
+            layers.append(nn.Dropout(0.5))
         self.net = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

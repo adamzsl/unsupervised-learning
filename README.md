@@ -115,3 +115,7 @@ Najprościej uruchomić pełny pipeline w Colabie przez notebook `notebooks/cola
 7. Sprawdź wynik w sekcji **6. Szybki test inpaintera**.
 
 Klasteryzacja jest kluczowa – etykiety klastrów służą do przygotowania podzbiorów, na których dopracowujesz modele inpaintingu (tak jak w repozytorium WikiArt_Inpainting).
+
+### Rekomendowana skala danych dla inpaintera
+
+W praktyce sensowne efekty pojawiają się od ok. **20–50 tys. obrazów** w treningu, a stabilna jakość wizualna zwykle wymaga **100 tys.+ obrazów** (najlepiej zróżnicowanych stylów). Mniejsze zbiory (np. pojedynczy klaster) warto wzmacniać augmentacją i/lub dłuższym treningiem.
