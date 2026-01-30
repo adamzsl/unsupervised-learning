@@ -19,14 +19,6 @@ def inpaint_image(model: nn.Module, image: torch.Tensor, mask: torch.Tensor) -> 
             output = output[0]
     return output
 
-
-def _normalize_mask(mask: torch.Tensor) -> torch.Tensor:
-    if mask.dtype != torch.float32 and mask.dtype != torch.float16 and mask.dtype != torch.float64:
-        mask = mask.float()
-    if mask.max() > 1.0:
-        mask = mask / 255.0
-    return mask.clamp(0.0, 1.0)
-
 @dataclass
 class InpaintConfig:
     input_channels: int = 4  # obraz + maska
@@ -103,7 +95,6 @@ class SimpleUNet(nn.Module):
         )
 
     def forward(self, image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        mask = _normalize_mask(mask)
         x = image * (1.0 - mask)
         x = torch.cat([x, mask], dim=1)
 
@@ -201,7 +192,6 @@ class VAEInpaint(nn.Module):
         return self.out(x)
 
     def forward(self, image: torch.Tensor, mask: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
-        mask = _normalize_mask(mask)
         x = image * (1.0 - mask)
         x = torch.cat([x, mask], dim=1)
         mu, logvar = self.encode(x)
@@ -235,7 +225,6 @@ def _normalize_for_vgg(x: torch.Tensor) -> torch.Tensor:
 
 def perceptual_loss(output: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     vgg = _get_vgg_features(output.device)
-    mask = _normalize_mask(mask)
     masked_out = output * mask
     masked_tgt = target * mask
     feat_out = vgg(_normalize_for_vgg(masked_out))
@@ -270,7 +259,7 @@ def inpaint_step(
 ) -> Dict[str, float]:
     images, masks, _, _ = batch
     images = images.to(device)
-    masks = _normalize_mask(masks.to(device))
+    masks = masks.to(device)
     # Note: Pass original 'images' to model, not 'masked'.
     # The model applies masking internally in forward().
     outputs = model(images, masks)
