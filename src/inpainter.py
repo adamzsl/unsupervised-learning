@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 import torch
 from torch import nn
+from torch.nn import functional as F
 from PIL import Image
 import torchvision.utils as vutils
+from torchvision.models import vgg16, VGG16_Weights
 
 def inpaint_image(model: nn.Module, image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     model.eval()
@@ -27,16 +29,24 @@ class InpaintConfig:
 
 
 class DoubleConv(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int) -> None:
+    def __init__(self, in_channels: int, out_channels: int, use_dropout: bool = False) -> None:
         super().__init__()
-        self.net = nn.Sequential(
+        groups = min(8, out_channels)
+        while groups > 1 and out_channels % groups != 0:
+            groups -= 1
+        norm1 = nn.GroupNorm(groups, out_channels)
+        norm2 = nn.GroupNorm(groups, out_channels)
+        layers = [
             nn.Conv2d(in_channels, out_channels, 3, padding=1),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(out_channels),
+            norm1,
             nn.Conv2d(out_channels, out_channels, 3, padding=1),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(out_channels),
-        )
+            norm2,
+        ]
+        if use_dropout:
+            layers.append(nn.Dropout2d(0.2))
+        self.net = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
@@ -49,7 +59,7 @@ class SimpleUNet(nn.Module):
         self.use_dropout = config.use_dropout
         self.output_scale = config.output_scale
 
-        self.enc1 = self._conv_block(config.input_channels, base)
+        self.enc1 = DoubleConv(config.input_channels, base, use_dropout=self.use_dropout)
         self.enc2 = self._conv_block(base, base * 2, pool=True)
         self.enc3 = self._conv_block(base * 2, base * 4, pool=True)
         self.enc4 = self._conv_block(base * 4, base * 8, pool=True)
@@ -57,13 +67,13 @@ class SimpleUNet(nn.Module):
         self.bottleneck = self._conv_block(base * 8, base * 16, pool=True)
 
         self.up4 = self._upconv_block(base * 16, base * 8)
-        self.dec4 = DoubleConv(base * 8, base * 8)
+        self.dec4 = DoubleConv(base * 16, base * 8, use_dropout=self.use_dropout)
         self.up3 = self._upconv_block(base * 8, base * 4)
-        self.dec3 = DoubleConv(base * 4, base * 4)
+        self.dec3 = DoubleConv(base * 8, base * 4, use_dropout=self.use_dropout)
         self.up2 = self._upconv_block(base * 4, base * 2)
-        self.dec2 = DoubleConv(base * 2, base * 2)
+        self.dec2 = DoubleConv(base * 4, base * 2, use_dropout=self.use_dropout)
         self.up1 = self._upconv_block(base * 2, base)
-        self.dec1 = DoubleConv(base, base)
+        self.dec1 = DoubleConv(base * 2, base, use_dropout=self.use_dropout)
 
         self.out = nn.Sequential(
             nn.Conv2d(base, 3, kernel_size=1),
@@ -74,18 +84,7 @@ class SimpleUNet(nn.Module):
         layers = []
         if pool:
             layers.append(nn.MaxPool2d(kernel_size=2))
-        layers.extend(
-            [
-                nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-                nn.ReLU(inplace=True),
-                nn.BatchNorm2d(out_channels),
-                nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-                nn.ReLU(inplace=True),
-                nn.BatchNorm2d(out_channels),
-            ]
-        )
-        if self.use_dropout:
-            layers.append(nn.Dropout(0.5))
+        layers.append(DoubleConv(in_channels, out_channels, use_dropout=self.use_dropout))
         return nn.Sequential(*layers)
 
     def _upconv_block(self, in_channels: int, out_channels: int) -> nn.Sequential:
@@ -106,14 +105,14 @@ class SimpleUNet(nn.Module):
 
         b = self.bottleneck(e4)
 
-        d4 = self.up4(b) + e4
-        d4 = self.dec4(d4)
-        d3 = self.up3(d4) + e3
-        d3 = self.dec3(d3)
-        d2 = self.up2(d3) + e2
-        d2 = self.dec2(d2)
-        d1 = self.up1(d2) + e1
-        d1 = self.dec1(d1)
+        d4 = self.up4(b)
+        d4 = self.dec4(torch.cat([d4, e4], dim=1))
+        d3 = self.up3(d4)
+        d3 = self.dec3(torch.cat([d3, e3], dim=1))
+        d2 = self.up2(d3)
+        d2 = self.dec2(torch.cat([d2, e2], dim=1))
+        d1 = self.up1(d2)
+        d1 = self.dec1(torch.cat([d1, e1], dim=1))
 
         output = self.out(d1) * self.output_scale
         return output * mask + image * (1.0 - mask)
@@ -150,12 +149,15 @@ class VAEInpaint(nn.Module):
             layers.append(nn.Conv2d(in_channels, out_channels, kernel_size=4, stride=2, padding=1))
         else:
             layers.append(nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1))
+        groups = min(8, out_channels)
+        while groups > 1 and out_channels % groups != 0:
+            groups -= 1
         layers.extend(
             [
-                nn.BatchNorm2d(out_channels),
+                nn.GroupNorm(groups, out_channels),
                 nn.ReLU(inplace=True),
                 nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-                nn.BatchNorm2d(out_channels),
+                nn.GroupNorm(groups, out_channels),
                 nn.ReLU(inplace=True),
             ]
         )
@@ -164,7 +166,7 @@ class VAEInpaint(nn.Module):
     def _upconv_block(self, in_channels: int, out_channels: int) -> nn.Sequential:
         return nn.Sequential(
             nn.ConvTranspose2d(in_channels, out_channels, kernel_size=4, stride=2, padding=1),
-            nn.BatchNorm2d(out_channels),
+            nn.GroupNorm(min(8, out_channels) if out_channels % min(8, out_channels) == 0 else 1, out_channels),
             nn.ReLU(inplace=True),
         )
 
@@ -199,6 +201,37 @@ class VAEInpaint(nn.Module):
         return composed, {"mu": mu, "logvar": logvar}
 
 
+_VGG_FEATURES: Optional[nn.Module] = None
+_VGG_DEVICE: Optional[torch.device] = None
+
+
+def _get_vgg_features(device: torch.device) -> nn.Module:
+    global _VGG_FEATURES, _VGG_DEVICE
+    if _VGG_FEATURES is None or _VGG_DEVICE != device:
+        weights = VGG16_Weights.DEFAULT
+        vgg = vgg16(weights=weights).features[:16].eval()
+        for param in vgg.parameters():
+            param.requires_grad = False
+        _VGG_FEATURES = vgg.to(device)
+        _VGG_DEVICE = device
+    return _VGG_FEATURES
+
+
+def _normalize_for_vgg(x: torch.Tensor) -> torch.Tensor:
+    mean = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
+    std = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
+    return (x - mean) / std
+
+
+def perceptual_loss(output: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    vgg = _get_vgg_features(output.device)
+    masked_out = output * mask
+    masked_tgt = target * mask
+    feat_out = vgg(_normalize_for_vgg(masked_out))
+    feat_tgt = vgg(_normalize_for_vgg(masked_tgt))
+    return F.l1_loss(feat_out, feat_tgt)
+
+
 def vae_loss(
     output: torch.Tensor,
     target: torch.Tensor,
@@ -206,21 +239,23 @@ def vae_loss(
     logvar: torch.Tensor,
     mask: torch.Tensor,
     mask_weight: float = 1.0,
-    background_weight: float = 0.1,
+    perceptual_weight: float = 0.1,
+    kld_weight: float = 1.0,
 ) -> torch.Tensor:
-    loss_mask = nn.functional.l1_loss(output * mask, target * mask)
-    inv_masks = 1.0 - mask
-    loss_bg = nn.functional.l1_loss(output * inv_masks, target * inv_masks)
-    recon = mask_weight * loss_mask + background_weight * loss_bg
+    loss_mask = F.l1_loss(output * mask, target * mask)
+    loss = mask_weight * loss_mask
+    if perceptual_weight > 0:
+        loss = loss + perceptual_weight * perceptual_loss(output, target, mask)
     kld = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
-    return recon + kld
+    return loss + kld_weight * kld
     
 def inpaint_step(
     model: nn.Module,
     batch,
     device: torch.device,
     mask_weight: float = 1.0,
-    background_weight: float = 0.1,
+    perceptual_weight: float = 0.1,
+    kld_weight: float = 1.0,
 ) -> Dict[str, float]:
     images, masks, masked, _ = batch
     images = images.to(device)
@@ -236,14 +271,15 @@ def inpaint_step(
             latent["logvar"],
             masks,
             mask_weight=mask_weight,
-            background_weight=background_weight,
+            perceptual_weight=perceptual_weight,
+            kld_weight=kld_weight,
         )
     else:
         output = outputs
-        loss_mask = nn.functional.l1_loss(output * masks, images * masks)
-        inv_masks = 1.0 - masks
-        loss_bg = nn.functional.l1_loss(output * inv_masks, images * inv_masks)
-        loss = mask_weight * loss_mask + background_weight * loss_bg
+        loss_mask = F.l1_loss(output * masks, images * masks)
+        loss = mask_weight * loss_mask
+        if perceptual_weight > 0:
+            loss = loss + perceptual_weight * perceptual_loss(output, images, masks)
     return {"loss": loss}
 
 
