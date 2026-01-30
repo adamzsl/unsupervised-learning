@@ -260,8 +260,9 @@ def inpaint_step(
     images, masks, masked, _ = batch
     images = images.to(device)
     masks = masks.to(device)
-    masked = masked.to(device)
-    outputs = model(masked, masks)
+    # Note: Pass original 'images' to model, not 'masked'.
+    # The model applies masking internally in forward().
+    outputs = model(images, masks)
     if isinstance(outputs, tuple):
         output, latent = outputs
         loss = vae_loss(
