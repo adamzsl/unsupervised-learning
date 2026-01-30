@@ -31,21 +31,16 @@ class InpaintConfig:
 class DoubleConv(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, use_dropout: bool = False) -> None:
         super().__init__()
-        groups = min(8, out_channels)
-        while groups > 1 and out_channels % groups != 0:
-            groups -= 1
-        norm1 = nn.GroupNorm(groups, out_channels)
-        norm2 = nn.GroupNorm(groups, out_channels)
         layers = [
             nn.Conv2d(in_channels, out_channels, 3, padding=1),
             nn.ReLU(inplace=True),
-            norm1,
+            nn.BatchNorm2d(out_channels),
             nn.Conv2d(out_channels, out_channels, 3, padding=1),
             nn.ReLU(inplace=True),
-            norm2,
+            nn.BatchNorm2d(out_channels),
         ]
         if use_dropout:
-            layers.append(nn.Dropout2d(0.2))
+            layers.append(nn.Dropout2d(0.5))
         self.net = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -67,18 +62,11 @@ class SimpleUNet(nn.Module):
         self.bottleneck = self._conv_block(base * 8, base * 16, pool=True)
 
         self.up4 = self._upconv_block(base * 16, base * 8)
-        self.dec4 = DoubleConv(base * 16, base * 8, use_dropout=self.use_dropout)
         self.up3 = self._upconv_block(base * 8, base * 4)
-        self.dec3 = DoubleConv(base * 8, base * 4, use_dropout=self.use_dropout)
         self.up2 = self._upconv_block(base * 4, base * 2)
-        self.dec2 = DoubleConv(base * 4, base * 2, use_dropout=self.use_dropout)
         self.up1 = self._upconv_block(base * 2, base)
-        self.dec1 = DoubleConv(base * 2, base, use_dropout=self.use_dropout)
 
-        self.out = nn.Sequential(
-            nn.Conv2d(base, 3, kernel_size=1),
-            nn.Sigmoid(),
-        )
+        self.out = nn.Conv2d(base, 3, kernel_size=1)
 
     def _conv_block(self, in_channels: int, out_channels: int, pool: bool = False) -> nn.Sequential:
         layers = []
@@ -105,14 +93,10 @@ class SimpleUNet(nn.Module):
 
         b = self.bottleneck(e4)
 
-        d4 = self.up4(b)
-        d4 = self.dec4(torch.cat([d4, e4], dim=1))
-        d3 = self.up3(d4)
-        d3 = self.dec3(torch.cat([d3, e3], dim=1))
-        d2 = self.up2(d3)
-        d2 = self.dec2(torch.cat([d2, e2], dim=1))
-        d1 = self.up1(d2)
-        d1 = self.dec1(torch.cat([d1, e1], dim=1))
+        d4 = self.up4(b) + e4
+        d3 = self.up3(d4) + e3
+        d2 = self.up2(d3) + e2
+        d1 = self.up1(d2) + e1
 
         output = self.out(d1) * self.output_scale
         return output * mask + image * (1.0 - mask)
@@ -277,10 +261,7 @@ def inpaint_step(
         )
     else:
         output = outputs
-        loss_mask = F.l1_loss(output * masks, images * masks)
-        loss = mask_weight * loss_mask
-        if perceptual_weight > 0:
-            loss = loss + perceptual_weight * perceptual_loss(output, images, masks)
+        loss = F.mse_loss(output, images)
     return {"loss": loss}
 
 
