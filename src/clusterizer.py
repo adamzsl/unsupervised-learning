@@ -277,17 +277,17 @@ def select_optimal_clusters(
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 4))
     axes[0].plot(k_values, inertias_np, marker="o")
-    axes[0].axvline(optimal_k, color="r", linestyle="--")
+    # axes[0].axvline(optimal_k, color="r", linestyle="--")
     axes[0].set_title("Elbow (inercja)")
     axes[0].set_xlabel("Liczba klastrów")
 
     axes[1].plot(k_values, silhouettes_np, marker="o")
-    axes[1].axvline(optimal_k, color="r", linestyle="--")
+    # axes[1].axvline(optimal_k, color="r", linestyle="--")
     axes[1].set_title("Silhouette")
     axes[1].set_xlabel("Liczba klastrów")
 
     axes[2].plot(k_values, calinski_np, marker="o")
-    axes[2].axvline(optimal_k, color="r", linestyle="--")
+    # axes[2].axvline(optimal_k, color="r", linestyle="--")
     axes[2].set_title("Calinski-Harabasz")
     axes[2].set_xlabel("Liczba klastrów")
 
