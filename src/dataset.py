@@ -1,4 +1,3 @@
-"""Dataset utilities for WikiArt inpainting project."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -22,8 +21,6 @@ class DatasetSplits:
 
 
 class WikiArtMaskedDataset(Dataset):
-    """Dataset zwracający obraz, maskę oraz obraz uszkodzony."""
-
     def __init__(
         self,
         dataset,
@@ -91,7 +88,6 @@ def load_wikiart_splits(
     test_split: float,
     seed: int = 42,
 ) -> DatasetSplits:
-    """Ładuje dataset i tworzy podziały train/val/test."""
     dataset = load_dataset(dataset_name, split="train")
     splits = dataset.train_test_split(test_size=test_split, seed=seed)
     remaining = splits["train"]
@@ -113,7 +109,6 @@ def create_dataloaders(
     num_strokes: int = 3,
     scale_images: bool = True,
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
-    """Tworzy DataLoadery dla train/val/test."""
     train_ds = WikiArtMaskedDataset(
         splits.train,
         image_size=image_size,
@@ -155,7 +150,6 @@ def create_dataloaders(
 
 
 def save_split_indices(splits: DatasetSplits, output_dir: Path) -> None:
-    """Zapisuje indeksy datasetu do plików npy (opcjonalne)."""
     output_dir.mkdir(parents=True, exist_ok=True)
     for name, split in {"train": splits.train, "val": splits.val, "test": splits.test}.items():
         if "__index_level_0__" in split.column_names:

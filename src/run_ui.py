@@ -95,8 +95,6 @@ class InpainterUI(tk.Tk):
 
         self.bind("<Configure>", self._on_resize)
 
-    # ---------- STYLE ----------
-
     def _setup_style(self):
         style = ttk.Style(self)
         style.theme_use("clam")
@@ -119,8 +117,6 @@ class InpainterUI(tk.Tk):
             ],
             foreground=[("disabled", "#888888")],
         )
-
-    # ---------- UI ----------
 
     def _build_ui(self):
         top = tk.Frame(self, bg=BG_COLOR)
@@ -161,8 +157,6 @@ class InpainterUI(tk.Tk):
 
         self._build_idle_buttons()
         self._render_image()
-
-    # ---------- BUTTONS ----------
 
     def _clear_buttons(self):
         for w in self.btn_inner.winfo_children():
@@ -224,8 +218,6 @@ class InpainterUI(tk.Tk):
             for i in range(len(self.buttons)):
                 self.btn_inner.columnconfigure(i, weight=1)
 
-    # ---------- IMAGE ----------
-
     def _render_image(self):
         cw, ch = self.canvas.winfo_width(), self.canvas.winfo_height()
         if cw < 10 or ch < 10:
@@ -254,8 +246,6 @@ class InpainterUI(tk.Tk):
             anchor="center",
         )
 
-    # ---------- ACTIONS ----------
-
     def on_new_image(self):
         self.stop_blink()
         self.original_image = load_random_image()
@@ -282,8 +272,6 @@ class InpainterUI(tk.Tk):
         self._build_idle_buttons()
         self._render_image()
 
-    # ---------- BLINK ----------
-
     def start_blink(self):
         self.blink_on = False
         self._blink()
@@ -297,8 +285,6 @@ class InpainterUI(tk.Tk):
         self.blink_on = not self.blink_on
         self._render_image()
         self.blink_job = self.after(BLINK_MS, self._blink)
-
-    # ---------- RESIZE ----------
 
     def _on_resize(self, event):
         self._layout_buttons()

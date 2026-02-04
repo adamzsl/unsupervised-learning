@@ -1,6 +1,3 @@
-"""
-Generator masek uszkodzeń dla obrazów WikiArt.
-"""
 from __future__ import annotations
 
 from typing import Optional
@@ -21,7 +18,6 @@ def generate_square_mask(
     num_squares: int = 1,
     rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
-    """Generuje maskę z losowymi kwadratami (1 = uszkodzenie)."""
     rng = _get_rng(rng)
     mask = np.zeros((image_size, image_size), dtype=np.float32)
     max_area = max_damage_ratio * image_size * image_size
@@ -45,7 +41,6 @@ def generate_irregular_mask(
     num_strokes: int = 3,
     rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
-    """Generuje maskę o nieregularnym kształcie (pociągnięcia pędzla)."""
     rng = _get_rng(rng)
     mask_img = Image.new("L", (image_size, image_size), 0)
     draw = ImageDraw.Draw(mask_img)
@@ -83,7 +78,6 @@ def generate_irregular_mask(
 
 
 def apply_mask(image: np.ndarray, mask: np.ndarray, mask_value: float = 1.0) -> np.ndarray:
-    """Nakłada maskę na obraz w formacie numpy (C,H,W) lub (H,W,C)."""
     if mask.ndim == 2:
         if image.ndim == 3 and image.shape[0] in {1, 3} and image.shape[1:] == mask.shape:
             mask_expanded = mask[None, ...]

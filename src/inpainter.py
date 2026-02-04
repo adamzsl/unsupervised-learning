@@ -1,4 +1,3 @@
-"""Modele inpainting (U-Net oraz VAE)."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -21,7 +20,7 @@ def inpaint_image(model: nn.Module, image: torch.Tensor, mask: torch.Tensor) -> 
 
 @dataclass
 class InpaintConfig:
-    input_channels: int = 4  # obraz + maska
+    input_channels: int = 4
     base_channels: int = 16
     latent_dim: int = 128
     output_scale: float = 1.0
@@ -244,8 +243,6 @@ def inpaint_step(
     images, masks, _, _ = batch
     images = images.to(device)
     masks = masks.to(device)
-    # Note: Pass original 'images' to model, not 'masked'.
-    # The model applies masking internally in forward().
     outputs = model(images, masks)
     if isinstance(outputs, tuple):
         output, latent = outputs

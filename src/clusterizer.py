@@ -1,4 +1,3 @@
-"""Klasteryzacja embeddingów obrazów."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -19,8 +18,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.manifold import TSNE
 
 try:
-    import umap  # type: ignore
-except ImportError:  # pragma: no cover - optional dependency
+    import umap 
+except ImportError: 
     umap = None
 
 
@@ -45,7 +44,6 @@ def select_optimal_pca_components(
     sample_size: int = 5000,
     scale: bool = True,
 ) -> Tuple[int, plt.Figure]:
-    """Dobiera liczbę komponentów PCA na podstawie wariancji."""
     features = _flatten_embeddings(embeddings)
     if scale:
         features = StandardScaler().fit_transform(features)
@@ -135,7 +133,6 @@ def build_embeddings(
 
 
 def reduce_umap(embeddings: np.ndarray, n_components: int = 2) -> np.ndarray:
-    """Redukuje embeddingi do 2D/3D przy pomocy UMAP."""
     if umap is None:
         raise ImportError("UMAP nie jest dostępny. Zainstaluj umap-learn.")
     reducer = umap.UMAP(n_components=n_components, random_state=42)
@@ -174,7 +171,6 @@ def cluster_embeddings(
 
 
 def evaluate_clusters(labels: np.ndarray, ground_truth: np.ndarray) -> Dict[str, float]:
-    """Podstawowa metryka porównania klastrów z etykietami."""
     score = normalized_mutual_info_score(ground_truth, labels)
     return {"nmi": float(score)}
 
@@ -184,7 +180,6 @@ def compare_clusters_with_labels(
     styles: np.ndarray,
     artists: np.ndarray,
 ) -> Tuple[Dict[str, float], plt.Figure]:
-    """Porównuje klastry z etykietami stylu i artysty."""
     ari_style = adjusted_rand_score(styles, labels)
     nmi_style = normalized_mutual_info_score(styles, labels)
     ari_artist = adjusted_rand_score(artists, labels)
@@ -210,7 +205,6 @@ def compare_clusters_with_labels(
 
 
 def summarize_labels(labels: np.ndarray, metadata: np.ndarray) -> Dict[int, Dict[str, int]]:
-    """Zwraca top etykiety dla każdego klastra (np. style/autor)."""
     summary: Dict[int, Dict[str, int]] = {}
     for label in np.unique(labels):
         items = metadata[labels == label]
@@ -277,17 +271,17 @@ def select_optimal_clusters(
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 4))
     axes[0].plot(k_values, inertias_np, marker="o")
-    # axes[0].axvline(optimal_k, color="r", linestyle="--")
+    #axes[0].axvline(optimal_k, color="r", linestyle="--")
     axes[0].set_title("Elbow (inercja)")
     axes[0].set_xlabel("Liczba klastrów")
 
     axes[1].plot(k_values, silhouettes_np, marker="o")
-    # axes[1].axvline(optimal_k, color="r", linestyle="--")
+    #axes[1].axvline(optimal_k, color="r", linestyle="--")
     axes[1].set_title("Silhouette")
     axes[1].set_xlabel("Liczba klastrów")
 
     axes[2].plot(k_values, calinski_np, marker="o")
-    # axes[2].axvline(optimal_k, color="r", linestyle="--")
+    #axes[2].axvline(optimal_k, color="r", linestyle="--")
     axes[2].set_title("Calinski-Harabasz")
     axes[2].set_xlabel("Liczba klastrów")
 

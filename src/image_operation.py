@@ -21,14 +21,10 @@ _to_tensor = T.ToTensor()
 
 
 def _make_random_alpha_mask(h: int, w: int) -> torch.Tensor:
-    """
-    Zwraca maskę (1, H, W) z losową dziurą (0 = przezroczyste)
-    """
     mask = torch.ones((1, h, w), dtype=torch.float32)
 
     size = random.randint(
-        MIN_HOLE,
-        max(int(min(h, w) * MAX_HOLE_FRAC), MIN_HOLE)
+        MIN_HOLE, max(int(min(h, w) * MAX_HOLE_FRAC), MIN_HOLE)
     )
     top = random.randint(0, h - size)
     left = random.randint(0, w - size)
@@ -38,16 +34,11 @@ def _make_random_alpha_mask(h: int, w: int) -> torch.Tensor:
 
 
 def _rgba_png_from_tensor(rgb: torch.Tensor, alpha: torch.Tensor) -> bytes:
-    """
-    rgb:   (3,H,W) float [0,1]
-    alpha: (1,H,W) float [0,1]
-    -> PNG RGBA (bytes)
-    """
     rgb_u8 = (rgb.numpy() * 255).astype(np.uint8)
     alpha_u8 = (alpha.numpy() * 255).astype(np.uint8)
 
-    rgba = np.concatenate([rgb_u8, alpha_u8], axis=0)  # (4,H,W)
-    rgba = np.transpose(rgba, (1, 2, 0))               # (H,W,4)
+    rgba = np.concatenate([rgb_u8, alpha_u8], axis=0)
+    rgba = np.transpose(rgba, (1, 2, 0))
 
     img = Image.fromarray(rgba, mode="RGBA")
     buf = io.BytesIO()
@@ -55,10 +46,6 @@ def _rgba_png_from_tensor(rgb: torch.Tensor, alpha: torch.Tensor) -> bytes:
     return buf.getvalue()
 
 def load_random_image_from_parquet() -> bytes:
-    """
-    Wybiera losowy plik Parquet + losowy rekord
-    Zwraca PNG RGBA (bytes) z pełną alfą
-    """
     parquet_files = list(DATASET_DIR.glob("*.parquet"))
     if not parquet_files:
         raise FileNotFoundError("Brak plików parquet w dataset/wiki_art")
@@ -84,16 +71,12 @@ def load_random_image_from_parquet() -> bytes:
     img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
     img = _resize(img)
 
-    rgb = _to_tensor(img)  #(3,H,W)
+    rgb = _to_tensor(img)
     alpha = torch.ones((1, IMG_SIZE[0], IMG_SIZE[1]), dtype=torch.float32)
 
     return _rgba_png_from_tensor(rgb, alpha)
 
 def damage_png_alpha(png_rgba: bytes) -> bytes:
-    """
-    Przyjmuje PNG RGBA
-    Zwraca PNG RGBA z losową dziurą w kanale alfa
-    """
     img = Image.open(io.BytesIO(png_rgba)).convert("RGBA")
     img = _resize(img)
 

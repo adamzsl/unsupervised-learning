@@ -64,9 +64,6 @@ class ConvAutoencoder(nn.Module):
         )
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Zwraca latent jako MAPĘ CECH (B, C, H, W)
-        """
         x = self.enc1(x)
         x = self.enc2(x)
         x = self.enc3(x)
@@ -89,24 +86,15 @@ class ConvAutoencoder(nn.Module):
 def extract_embeddings(
     model: ConvAutoencoder, dataloader: Iterable, device: torch.device
 ) -> torch.Tensor:
-    """
-    Ekstrahuje embeddingi (B, latent_dim) z autoenkodera.
-    Latent jest mapą cech (B, C, H, W) i jest redukowany
-    przez Global Average Pooling.
-    """
     model.eval()
     embeddings = []
 
     for batch in dataloader:
         images = batch[0].to(device)
 
-        # forward
-        _, z = model(images)          # z: (B, C, H, W)
-
-        # global average pooling -> (B, C)
+        _, z = model(images)
         z_vec = z.mean(dim=(2, 3))
 
         embeddings.append(z_vec.cpu())
 
     return torch.cat(embeddings, dim=0)
-
